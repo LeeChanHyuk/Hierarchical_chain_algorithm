@@ -6,6 +6,7 @@ import random
 import time
 from pathlib import Path
 from warnings import warn
+from cv2 import Stitcher
 
 import numpy as np
 import torch.distributed as dist

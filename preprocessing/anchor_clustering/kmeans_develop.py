@@ -13,7 +13,7 @@ image_base_path = 'E:/Human_information_data/GazeCapture'
 
 
 def read_voc(image_folder_path, face_annotation_path, left_eye_annotation_path, right_eye_annotation_path, img_wh,
-             bbox_wh, mode='face'):
+             bbox_wh, bbox_dict, mode='face'):
     with open(face_annotation_path) as json_face_file:
         with open(left_eye_annotation_path) as left_eye_json_file:
             with open(right_eye_annotation_path) as right_eye_json_file:
@@ -55,28 +55,31 @@ def read_voc(image_folder_path, face_annotation_path, left_eye_annotation_path, 
                     right_y = int(right_eye_y_coordinate[index]) + y
                     right_w = int(right_eye_width[index])
                     right_h = int(right_eye_height[index])
-                    img_wh.append([img.shape[1], img.shape[0]])
                     if mode == 'face':
-                        for i in range(len(bbox_wh)):
-                            if bbox_wh[i][0] != w/img.shape[1] or bbox_wh[i][1] != h/img.shape[0]:
-                                bbox_wh.append([w / img.shape[1], h / img.shape[0]])
+                        if bbox_dict.get(w) != h:
+                            bbox_dict[w] = h
+                            bbox_wh.append([w/img.shape[1], h/img.shape[0]])
+                            img_wh.append([img.shape[1], img.shape[0]])
                     elif mode == 'eye':
-                        if bbox_wh[i][0] != left_w / img.shape[1] or bbox_wh[i][1] != left_h / img.shape[0]:
-                            bbox_wh.append([left_w / img.shape[1], left_h / img.shape[0]])
-                            bbox_wh.append([right_w / img.shape[1], right_h / img.shape[0]])
+                        if bbox_dict.get(left_w) == left_h :
+                            bbox_dict[left_w] = left_h
+                            bbox_dict[right_w] = right_h
+                            bbox_wh.append([left_w/img.shape[1], left_h/img.shape[0]])
+                            bbox_wh.append([right_w/img.shape[1], right_h/img.shape[0]])
+                            img_wh.append([img.shape[1], img.shape[0]])
 
     return img_wh, bbox_wh
 
 
+imgs_wh, bboxs_wh, bboxs_dict= [], [], {}
 for tar_folder in tqdm(os.listdir(image_base_path)):
     for num_folder in os.listdir(os.path.join(image_base_path, tar_folder)):
         image_folder_path = os.path.join(image_base_path, tar_folder,num_folder, 'frames')
         face_annotation_path = os.path.join(image_base_path,tar_folder, num_folder, 'appleFace.json')
         left_eye_annotation_path = os.path.join(image_base_path,tar_folder, num_folder, 'appleLeftEye.json')
         right_eye_annotation_path = os.path.join(image_base_path,tar_folder, num_folder, 'appleRightEye.json')
-        img_wh, bbox_wh = [], []
-        img_wh, bbox_wh = read_voc(image_folder_path, face_annotation_path, left_eye_annotation_path, right_eye_annotation_path, img_wh, bbox_wh, 'face')
-
+        imgs_wh, bboxs_wh = read_voc(image_folder_path, face_annotation_path, left_eye_annotation_path, right_eye_annotation_path, imgs_wh, bboxs_wh, bboxs_dict, 'face')
+imgs_wh, bboxs_wh = np.array(imgs_wh), np.array(bboxs_wh)
 def wh_iou(wh1, wh2):
 	wh1 = wh1[:, None] # [N, 1, 2] # Bounding box
 	wh2 = wh2[None] # Cluster [1, Cluster]
@@ -177,9 +180,7 @@ def auto_anchor(img_size, n, thr, gen, img_wh, bbox_wh):
           bbox_wh: bbox Long box collection
     """
     # Maximum edge reduction to img_size
-    img_wh = np.array(img_wh, dtype=np.float32)
     shapes = (img_size * img_wh / img_wh).max(1, keepdims=True)
-    bbox_wh = np.array(bbox_wh)
     resized_bboxes = bbox_wh * shapes
     wh0 = np.concatenate([l * s for s, l in zip(shapes, bbox_wh)])  # wh는 원래 스케일로 bounding box를 바꿔주는 건가보다.
 	
